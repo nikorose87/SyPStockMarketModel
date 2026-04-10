@@ -1,0 +1,16 @@
+pandas
+numpy
+scikit-learn
+xgboost
+lightgbm
+torch
+transformers
+sentence-transformers
+ta
+matplotlib
+seaborn
+plotly
+optuna
+jupyterlab
+ipykernel
+statsmodels
