@@ -18,6 +18,118 @@ This document reviews top Kaggle notebooks and community approaches for stock pr
 
 ---
 
+## Appendix A. Feature Terminology Glossary
+
+Reference for all technical features used across the analyzed notebooks and our pipeline.
+
+### Price-Based (OHLCV raw)
+
+| Term | Definition |
+|------|-----------|
+| **Open / High / Low / Close** | Opening, highest, lowest, and closing price of a stock in a single trading day. |
+| **Volume** | Total number of shares traded during the day. Higher volume generally means higher liquidity and conviction behind a move. |
+| **OHLCV** | Shorthand for the five raw columns above -- the standard daily price record. |
+
+### Returns
+
+| Term | Definition |
+|------|-----------|
+| **Daily return (return_1d)** | Percentage change in close price from one day to the next: `(Close_t - Close_{t-1}) / Close_{t-1}`. |
+| **N-day return (return_5d, etc.)** | Percentage change over N trading days: `(Close_t - Close_{t-N}) / Close_{t-N}`. Captures short to medium-term momentum. |
+| **Log return** | `ln(Close_t / Close_{t-1})`. Additive over time and better behaved statistically than simple returns. Preferred for modeling. |
+| **Event return (eventRet)** | Sum of same-day return + next-day return. Used in event studies to capture the full price reaction to a news event spanning two days. |
+
+### Moving Averages
+
+| Term | Definition |
+|------|-----------|
+| **SMA(n)** | Simple Moving Average -- unweighted mean of the last *n* closing prices. SMA(5) = weekly, SMA(20) = monthly trend. |
+| **EMA(n)** | Exponential Moving Average -- like SMA but recent prices are weighted exponentially more. Reacts faster to changes. EMA(12) and EMA(26) are the standard MACD inputs. |
+| **close_to_sma** | Normalized distance between current price and its SMA: `(Close - SMA) / SMA`. Positive = price above trend, negative = below. |
+
+### Momentum Indicators
+
+| Term | Definition |
+|------|-----------|
+| **RSI(14)** | Relative Strength Index -- measures speed and magnitude of recent price changes on a 0-100 scale. RSI > 70 = overbought, RSI < 30 = oversold. Computed over 14 periods by default. |
+| **MACD** | Moving Average Convergence Divergence = EMA(12) - EMA(26). Positive = short-term momentum is bullish. |
+| **MACD signal** | 9-period EMA of the MACD line. Crossovers between MACD and signal indicate momentum shifts. |
+| **MACD histogram** | MACD - signal. Visualizes the gap between the two; histogram crossing zero = momentum reversal. |
+| **Stochastic Oscillator (%K, %D)** | Compares today's close to the high-low range over the last 14 days. %K = raw, %D = smoothed (3-day SMA of %K). Range 0-100. Signals similar to RSI. |
+| **Momentum(n)** | Simple price difference: `Close_t - Close_{t-n}`. Used in Notebook 4 with windows 5 and 10. |
+| **Log-momentum** | `ln(Close_t / Close_{t-n})` -- log-scaled version of momentum. More stable across different price levels. |
+
+### Volatility Indicators
+
+| Term | Definition |
+|------|-----------|
+| **Bollinger Bands** | Middle band = SMA(20); upper/lower = SMA(20) +/- 2 standard deviations. Bands widen in volatile markets, narrow in calm ones. |
+| **BB width** | `(Upper - Lower) / Middle`. Measures how wide the bands are -- proxy for current volatility level. |
+| **BB %B** | `(Close - Lower) / (Upper - Lower)`. Where the price sits within the bands. 0 = at lower band, 1 = at upper, >1 or <0 = breakout. |
+| **ATR(14)** | Average True Range -- average of `max(High-Low, |High-PrevClose|, |Low-PrevClose|)` over 14 days. Measures volatility in dollar terms, accounting for gaps. |
+| **Rolling std (5d, 10d, 20d)** | Standard deviation of daily returns over a rolling window. Directly measures return dispersion / risk. |
+| **Price Range** | `High - Low` for a single day. Simplest measure of intraday volatility. |
+| **Price Range %** | `(High - Low) / Close`. Normalizes price range by price level for cross-stock comparability. |
+
+### Volume Features
+
+| Term | Definition |
+|------|-----------|
+| **OBV** | On-Balance Volume -- running cumulative sum of volume, adding on up-days and subtracting on down-days. Tracks whether volume confirms price trends. |
+| **Volume ratio** | `Volume / SMA(Volume, 20)`. Values > 1 mean above-average trading activity (often around earnings, news, or breakouts). |
+| **Volume change** | `Volume.pct_change()` -- day-over-day percentage change in volume. Sudden spikes often precede or accompany large price moves. |
+
+### Lag Features
+
+| Term | Definition |
+|------|-----------|
+| **close_lag_n** | Closing price from *n* days ago. Gives tree-based models (which don't see sequences) access to recent history. |
+| **return_lag_n** | Daily return from *n* days ago. Same purpose -- encodes recent price direction for non-sequential models. |
+
+### Calendar Features
+
+| Term | Definition |
+|------|-----------|
+| **day_of_week** | 0 = Monday through 4 = Friday. Captures day-of-week effects (e.g., "Monday effect" in equities). |
+| **month** | Calendar month (1-12). Captures seasonality (e.g., "sell in May", January effect). |
+| **is_month_start / is_month_end** | Binary flags. Portfolio rebalancing and window-dressing often cause distinct behavior at month boundaries. |
+
+### Cross-Ticker / Market Features
+
+| Term | Definition |
+|------|-----------|
+| **market_return** | Mean daily return across all 7 tickers. Acts as a sector-level momentum proxy (similar to an index). |
+| **relative_return** | Ticker return minus market_return. Isolates stock-specific movement from overall market direction. |
+| **market_volatility** | Standard deviation of returns across all 7 tickers on a given day. High values = market-wide stress/event. |
+
+### NLP / Sentiment Features
+
+| Term | Definition |
+|------|-----------|
+| **VADER** | Valence Aware Dictionary and sEntiment Reasoner. Rule-based sentiment model from NLTK. Returns compound score (-1 to +1) plus positive/negative/neutral ratios. |
+| **TextBlob polarity** | Simple sentiment polarity from the TextBlob library (-1 to +1). Generic, not tuned for finance. |
+| **FinBERT** | BERT model pre-trained on financial text (ProsusAI/finbert). Outputs probabilities for positive/negative/neutral sentiment per text. State-of-the-art for financial NLP. |
+| **Sentence embeddings** | Dense vector representation of a headline/summary from a sentence-transformer model (e.g., all-MiniLM-L6-v2, 384 dimensions). Captures semantic meaning beyond polarity. |
+| **sentiment_mean / std / max / min** | Daily aggregated statistics of FinBERT compound scores across all articles for a ticker on that day. |
+| **positive_ratio / negative_ratio** | Fraction of articles classified as positive or negative on a given day. |
+| **news_count** | Number of articles published for a ticker on a given day. Proxy for market attention; correlated with volatility. |
+| **has_news** | Binary flag: 1 if any news was published for this ticker on this day, 0 otherwise. |
+| **embedding_pca_n** | PCA-reduced components of the daily mean sentence embedding vector. Captures dominant semantic themes in compact form. |
+| **eventRet** | Not a feature but an evaluation target in Notebook 2: `return_day_of_news + return_next_day`. Measures the full price reaction window around a news event. |
+
+### Scaling and Preprocessing
+
+| Term | Definition |
+|------|-----------|
+| **MinMaxScaler** | Scales values to a fixed range (e.g., 0-1 or -1 to 1). Preserves shape of distribution. |
+| **StandardScaler** | Centers to mean=0 and scales to std=1. Better when features have very different units. |
+| **Dual scalers** | Using separate scalers for target (Close) and input features. Essential for correct inverse transformation of predictions back to dollar values. |
+| **Isolation Forest** | Unsupervised anomaly detection. Isolates outliers by randomly partitioning data -- points requiring fewer splits to isolate are more anomalous. |
+| **Quantile clipping** | Clamp values to the 1st-99th percentile range. Prevents extreme outliers from dominating gradients during training. |
+| **Jitter augmentation** | Adding small Gaussian noise to input sequences to artificially increase training diversity. Especially useful for small datasets. |
+
+---
+
 ## 2. Detailed analysis per notebook
 
 ### 2.1 GAN + Twitter sentiment (447 votes)
